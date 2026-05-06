@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, text
 
 app = FastAPI()
 
-@app.post("/")
+@app.post("/api/verify")
 async def verify_connection(request: Request):
     try:
         data = await request.json()
