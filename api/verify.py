@@ -1,23 +1,18 @@
-import json
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 import jwt
 import os
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine, text
 
-def handler(request):
-    if request.method != 'POST':
-        return {
-            'statusCode': 405,
-            'body': json.dumps({'CONECCION': 'Error'})
-        }
+app = FastAPI()
 
+@app.post("/")
+async def verify_connection(request: Request):
     try:
-        data = request.get_json()
+        data = await request.json()
     except:
-        return {
-            'statusCode': 400,
-            'body': json.dumps({'CONECCION': 'Error'})
-        }
+        return JSONResponse(status_code=400, content={"CONECCION": "Error"})
 
     db_type = data.get('dbType', 'mysql+pymysql')
     db_host = data.get('dbHost')
@@ -26,10 +21,7 @@ def handler(request):
     db_name = data.get('dbName')
 
     if not all([db_host, db_user, db_pass, db_name]):
-        return {
-            'statusCode': 400,
-            'body': json.dumps({'CONECCION': 'Error'})
-        }
+        return JSONResponse(status_code=400, content={"CONECCION": "Error"})
 
     try:
         engine = create_engine(f'{db_type}://{db_user}:{db_pass}@{db_host}/{db_name}')
@@ -39,7 +31,7 @@ def handler(request):
             conn.execute(text("SELECT 1"))
         
         # Generar token JWT con los datos de conexión
-        secret_key = os.getenv('JWT_SECRET', 'my_secret_key')  # Usar variable de entorno en Vercel
+        secret_key = os.getenv('JWT_SECRET', 'my_secret_key')
         payload = {
             'dbType': db_type,
             'dbHost': db_host,
@@ -50,12 +42,6 @@ def handler(request):
         }
         token = jwt.encode(payload, secret_key, algorithm='HS256')
         
-        return {
-            'statusCode': 200,
-            'body': json.dumps({'CONECCION': 'Exitosa', 'TOKEN': token})
-        }
+        return {"CONECCION": "Exitosa", "TOKEN": token}
     except Exception as e:
-        return {
-            'statusCode': 200,
-            'body': json.dumps({'CONECCION': 'Error'})
-        }
+        return {"CONECCION": "Error"}

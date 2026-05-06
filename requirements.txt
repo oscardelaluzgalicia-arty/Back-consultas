@@ -4,3 +4,5 @@ openpyxl
 pymysql
 psycopg2-binary
 PyJWT
+fastapi
+uvicorn
