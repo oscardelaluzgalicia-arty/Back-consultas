@@ -140,6 +140,14 @@ async def execute_queries(request: Request):
                     "DETAIL": str(e)
                 })
 
+        successful_results = []
+        for result in results:
+            if result["CONECCION"] != "Exitosa":
+                continue
+            if not result["ROWS"]:
+                continue
+            successful_results.append(result)
+
         if response_format == 'json':
             return {
                 "CONECCION": "Exitosa",
@@ -150,13 +158,8 @@ async def execute_queries(request: Request):
         elif response_format == 'excel':
             excel_buffer = BytesIO()
             with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                for result in results:
-                    if result["CONECCION"] != "Exitosa":
-                        continue
-                    rows = result["ROWS"]
-                    if not rows:
-                        continue
-                    df = pd.DataFrame(rows)
+                for result in successful_results:
+                    df = pd.DataFrame(result["ROWS"])
                     sheet_name = result["table"][:31]
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
             excel_buffer.seek(0)
