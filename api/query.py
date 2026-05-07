@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 import jwt
 import os
 from sqlalchemy import create_engine, text, inspect
 from jwt import ExpiredSignatureError, InvalidTokenError
+from io import BytesIO
+import pandas as pd
 
 router = APIRouter()
 
@@ -47,6 +49,7 @@ async def execute_queries(request: Request):
             content={"CONECCION": "Error", "DETAIL": "Invalid JSON"}
         )
 
+    response_format = data.get('format', 'json')
     queries = data.get('queries', [])
 
     if not queries or not isinstance(queries, list):
@@ -137,12 +140,36 @@ async def execute_queries(request: Request):
                     "DETAIL": str(e)
                 })
 
-        return {
-            "CONECCION": "Exitosa",
-            "RESULTS": results,
-            "TOTAL_QUERIES": len(queries),
-            "SUCCESSFUL_QUERIES": sum(1 for r in results if r.get('CONECCION') == 'Exitosa')
-        }
+        if response_format == 'json':
+            return {
+                "CONECCION": "Exitosa",
+                "RESULTS": results,
+                "TOTAL_QUERIES": len(queries),
+                "SUCCESSFUL_QUERIES": sum(1 for r in results if r.get('CONECCION') == 'Exitosa')
+            }
+        elif response_format == 'excel':
+            excel_buffer = BytesIO()
+            with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                for result in results:
+                    if result["CONECCION"] != "Exitosa":
+                        continue
+                    rows = result["ROWS"]
+                    if not rows:
+                        continue
+                    df = pd.DataFrame(rows)
+                    sheet_name = result["table"][:31]
+                    df.to_excel(writer, sheet_name=sheet_name, index=False)
+            excel_buffer.seek(0)
+            return StreamingResponse(
+                excel_buffer,
+                media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                headers={"Content-Disposition": "attachment; filename=report.xlsx"}
+            )
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={"CONECCION": "Error", "DETAIL": "Invalid format. Supported: json, excel"}
+            )
 
     except Exception as e:
         return {"CONECCION": "Error", "DETAIL": str(e)}
