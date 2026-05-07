@@ -29,20 +29,15 @@ def get_tables_query(db_type: str):
 
 @router.post('/tables')
 async def show_tables(request: Request):
-    try:
-        data = await request.json()
-    except:
+    auth_header = request.headers.get('authorization') or request.headers.get('Authorization')
+    
+    if not auth_header or not auth_header.lower().startswith('bearer '):
         return JSONResponse(
-            status_code=400,
-            content={"CONECCION": "Error", "DETAIL": "Invalid JSON"}
+            status_code=401,
+            content={"CONECCION": "Error", "DETAIL": "Missing or invalid Authorization header"}
         )
-
-    token = data.get('TOKEN')
-    if not token:
-        return JSONResponse(
-            status_code=400,
-            content={"CONECCION": "Error", "DETAIL": "Missing TOKEN"}
-        )
+    
+    token = auth_header.split(' ', 1)[1].strip()
 
     try:
         payload = verify_token(token)
