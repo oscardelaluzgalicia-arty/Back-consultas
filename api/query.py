@@ -127,6 +127,7 @@ async def execute_queries(request: Request):
 
                 results.append({
                     "table": table,
+                    "ORDER": order,
                     "CONECCION": "Exitosa",
                     "COLUMNS": columns,
                     "ROWS": rows,
@@ -160,7 +161,8 @@ async def execute_queries(request: Request):
             with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
                 for result in successful_results:
                     df = pd.DataFrame(result["ROWS"])
-                    sheet_name = result["table"][:31]
+                    sheet_name = f"{result['table']}_{result['ORDER']}_{result['COUNT']}"
+                    sheet_name = sheet_name[:31]
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
             excel_buffer.seek(0)
             return StreamingResponse(
