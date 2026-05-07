@@ -7,12 +7,16 @@ from sqlalchemy import create_engine, text
 
 app = FastAPI()
 
-@app.post("/api/verify")
+@app.post("/")
 async def verify_connection(request: Request):
+
     try:
         data = await request.json()
     except:
-        return JSONResponse(status_code=400, content={"CONECCION": "Error"})
+        return JSONResponse(
+            status_code=400,
+            content={"CONECCION": "Error"}
+        )
 
     db_type = data.get('dbType', 'mysql+pymysql')
     db_host = data.get('dbHost')
@@ -21,17 +25,25 @@ async def verify_connection(request: Request):
     db_name = data.get('dbName')
 
     if not all([db_host, db_user, db_pass, db_name]):
-        return JSONResponse(status_code=400, content={"CONECCION": "Error"})
+        return JSONResponse(
+            status_code=400,
+            content={"CONECCION": "Error"}
+        )
 
     try:
-        engine = create_engine(f'{db_type}://{db_user}:{db_pass}@{db_host}/{db_name}')
-        
-        # Verificar conexión con una query simple
+
+        engine = create_engine(
+            f'{db_type}://{db_user}:{db_pass}@{db_host}/{db_name}'
+        )
+
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
-        
-        # Generar token JWT con los datos de conexión
-        secret_key = os.getenv('JWT_SECRET', 'my_secret_key')
+
+        secret_key = os.getenv(
+            'JWT_SECRET',
+            'my_secret_key'
+        )
+
         payload = {
             'dbType': db_type,
             'dbHost': db_host,
@@ -40,8 +52,20 @@ async def verify_connection(request: Request):
             'dbName': db_name,
             'exp': datetime.utcnow() + timedelta(hours=1)
         }
-        token = jwt.encode(payload, secret_key, algorithm='HS256')
-        
-        return {"CONECCION": "Exitosa", "TOKEN": token}
+
+        token = jwt.encode(
+            payload,
+            secret_key,
+            algorithm='HS256'
+        )
+
+        return {
+            "CONECCION": "Exitosa",
+            "TOKEN": token
+        }
+
     except Exception as e:
-        return {"CONECCION": "Error"}
+        return {
+            "CONECCION": "Error",
+            "DETAIL": str(e)
+        }
