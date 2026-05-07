@@ -47,12 +47,21 @@ async def describe_table(request: Request):
             content={"CONECCION": "Error", "DETAIL": "Invalid JSON"}
         )
 
-    table_name = data.get('table_name')
+    table_names = data.get('table_names') or data.get('table_name')
 
-    if not table_name:
+    if not table_names:
         return JSONResponse(
             status_code=400,
-            content={"CONECCION": "Error", "DETAIL": "Missing table_name"}
+            content={"CONECCION": "Error", "DETAIL": "Missing table_names or table_name"}
+        )
+
+    # Ensure table_names is a list
+    if isinstance(table_names, str):
+        table_names = [table_names]
+    elif not isinstance(table_names, list):
+        return JSONResponse(
+            status_code=400,
+            content={"CONECCION": "Error", "DETAIL": "table_names must be a string or list of strings"}
         )
 
     db_type = payload.get('dbType', 'mysql+pymysql')
@@ -70,30 +79,42 @@ async def describe_table(request: Request):
     try:
         engine = create_engine(f'{db_type}://{db_user}:{db_pass}@{db_host}/{db_name}')
         inspector = inspect(engine)
-        
-        if table_name not in inspector.get_table_names():
-            return JSONResponse(
-                status_code=404,
-                content={"CONECCION": "Error", "DETAIL": f"Table '{table_name}' not found"}
-            )
+        available_tables = inspector.get_table_names()
 
-        columns_info = []
-        for column in inspector.get_columns(table_name):
-            columns_info.append({
-                "name": column['name'],
-                "type": str(column['type']),
-                "nullable": column['nullable'],
-                "default": str(column['default']) if column['default'] is not None else None
+        results = []
+        for table_name in table_names:
+            if table_name not in available_tables:
+                results.append({
+                    "table": table_name,
+                    "CONECCION": "Error",
+                    "DETAIL": f"Table '{table_name}' not found"
+                })
+                continue
+
+            columns_info = []
+            for column in inspector.get_columns(table_name):
+                columns_info.append({
+                    "name": column['name'],
+                    "type": str(column['type']),
+                    "nullable": column['nullable'],
+                    "default": str(column['default']) if column['default'] is not None else None
+                })
+
+            primary_keys = inspector.get_pk_constraint(table_name)
+
+            results.append({
+                "table": table_name,
+                "CONECCION": "Exitosa",
+                "COLUMNS": columns_info,
+                "PRIMARY_KEY": primary_keys.get('constrained_columns', []),
+                "COLUMN_COUNT": len(columns_info)
             })
-
-        primary_keys = inspector.get_pk_constraint(table_name)
 
         return {
             "CONECCION": "Exitosa",
-            "TABLE": table_name,
-            "COLUMNS": columns_info,
-            "PRIMARY_KEY": primary_keys.get('constrained_columns', []),
-            "COLUMN_COUNT": len(columns_info)
+            "RESULTS": results,
+            "TOTAL_TABLES": len(table_names),
+            "SUCCESSFUL_TABLES": sum(1 for r in results if r.get('CONECCION') == 'Exitosa')
         }
     except Exception as e:
         return {"CONECCION": "Error", "DETAIL": str(e)}
